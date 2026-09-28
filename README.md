@@ -13,6 +13,12 @@ A friendlier way to browse, filter, and sort the community themes from the [Rock
 
 This is an unofficial project and isn't affiliated with Rockbox. Themes, previews, and metadata belong to their original creators. Downloads and details pages link back to themes.rockbox.org.
 
+## Sources
+
+- [Rockbox theme site](https://themes.rockbox.org/index.php?allthemes): the source of the theme catalog, preview images, and downloads
+- [Rockbox/themesite](https://github.com/Rockbox/themesite): the source code for the Rockbox theme site, used to understand how the catalog is structured
+- [Rockbox](https://www.rockbox.org): the open source firmware these themes are made for
+
 ## Features
 
 - Filter by LCD resolution, firmware support, community rating, download size, screen shape, and preview appearance
