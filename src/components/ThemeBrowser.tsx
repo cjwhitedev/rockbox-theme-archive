@@ -90,7 +90,7 @@ function ThemeCard({
             height={theme.height || 240}
             loading={eagerPreview ? "eager" : "lazy"}
             onError={() => setImageFailed(true)}
-            src={`/api/image?src=${encodeURIComponent(theme.preview)}`}
+            src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/previews/${theme.id}.webp`}
             unoptimized
             width={theme.width || 320}
           />
