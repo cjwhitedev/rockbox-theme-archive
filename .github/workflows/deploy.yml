@@ -27,6 +27,11 @@ jobs:
 
       - run: npm ci
 
+      # Falls back to the committed snapshot if themes.rockbox.org can't be reached.
+      - name: Refresh theme data from themes.rockbox.org
+        run: npm run data:update
+        continue-on-error: true
+
       - run: npm run build
         env:
           NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}

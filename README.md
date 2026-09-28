@@ -30,7 +30,7 @@ This is an unofficial project and isn't affiliated with Rockbox. Themes, preview
 
 ## Data notes
 
-- **Catalog snapshot:** `public/data/themes.json` is a one-time snapshot of the Rockbox theme list. Rockbox doesn't offer a public API, and the site is behind a bot challenge, so the data doesn't update live.
+- **Catalog data:** `public/data/themes.json` is built from the [all themes page](https://themes.rockbox.org/index.php?allthemes), since Rockbox doesn't offer a public API. It's refreshed each time the site deploys, so it's as current as the last deploy.
 - **Appearance labels are estimates.** They're based on the brightness of each theme's first preview image. "Mostly black" means at least 55% of that preview's pixels are near-black. A theme may look different on your device.
 
 ## Tech stack
@@ -54,19 +54,22 @@ Open http://localhost:3000.
 | `npm run dev`                 | Starts the development server                                                                 |
 | `npm run build`               | Builds the static site into `out/`                                                            |
 | `npm run lint`                | Runs ESLint                                                                                   |
+| `npm run data:update`         | Runs the three data scripts below in order                                                    |
+| `npm run fetch:catalog`       | Rebuilds `themes.json` from the Rockbox all themes page (one request)                         |
 | `npm run download:previews`   | Downloads missing preview images into `public/previews/` as WebP (existing files are skipped) |
-| `npm run classify:appearance` | Recalculates the appearance labels in `themes.json` from the preview images                   |
+| `npm run classify:appearance` | Labels themes that don't have an appearance yet, using the local preview images               |
 
-Both data scripts accept `--limit=N` for trial runs. `classify:appearance` also accepts `--dry-run`.
+`download:previews` and `classify:appearance` accept `--limit=N` for trial runs. `classify:appearance` also accepts `--dry-run`, and `--all` to relabel every theme.
 
 ## Deployment
 
 Every push to `main` runs [.github/workflows/deploy.yml](.github/workflows/deploy.yml), which:
 
 1. Installs dependencies with `npm ci` on Node 22
-2. Builds with `NEXT_PUBLIC_BASE_PATH=/<repo-name>` so links and images work under the GitHub Pages subpath
-3. Uploads the `out/` folder and deploys it to GitHub Pages
+2. Runs `npm run data:update` to pick up new and changed themes. Only missing preview images are downloaded, to keep the load on the Rockbox server low. If Rockbox can't be reached, the build continues with the data committed in the repo.
+3. Builds with `NEXT_PUBLIC_BASE_PATH=/<repo-name>` so links and images work under the GitHub Pages subpath
+4. Uploads the `out/` folder and deploys it to GitHub Pages
 
 You can also run the workflow by hand from the **Actions** tab. In the repo settings, **Settings → Pages → Source** must be set to **GitHub Actions**.
 
-Preview images are committed to the repo because GitHub Pages can only serve static files and the Rockbox site doesn't reliably serve its preview images to other sites.
+Preview images are committed to the repo because GitHub Pages can only serve static files and the Rockbox site doesn't reliably serve its preview images to other sites. The deploy doesn't commit its refreshed data back to the repo, so run `npm run data:update` locally and commit the results now and then to keep each deploy's downloads small.

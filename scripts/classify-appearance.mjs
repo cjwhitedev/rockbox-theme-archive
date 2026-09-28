@@ -5,48 +5,26 @@ import sharp from "sharp";
 const catalogPath = fileURLToPath(
   new URL("../public/data/themes.json", import.meta.url),
 );
+const previewDir = fileURLToPath(new URL("../public/previews/", import.meta.url));
 const dryRun = process.argv.includes("--dry-run");
+const reclassifyAll = process.argv.includes("--all");
 const limitArgument = process.argv.find((argument) =>
   argument.startsWith("--limit="),
 );
 const limit = limitArgument ? Number(limitArgument.slice(8)) : Infinity;
 const concurrency = 6;
 const themes = JSON.parse(await readFile(catalogPath, "utf8")).themes;
-const selectedThemes = themes.slice(0, limit);
-const imageRequests = new Map();
+// A null confidence marks themes that are new or whose preview couldn't be read.
+const selectedThemes = themes
+  .filter((theme) => reclassifyAll || theme.appearanceConfidence == null)
+  .slice(0, limit);
 
-async function getPreview(url) {
-  if (!imageRequests.has(url)) {
-    imageRequests.set(
-      url,
-      (async () => {
-        try {
-          const response = await fetch(url, {
-            headers: {
-              Accept: "image/*",
-              Referer: "https://themes.rockbox.org/",
-            },
-            signal: AbortSignal.timeout(20000),
-          });
-
-          if (
-            !response.ok ||
-            !response.headers.get("content-type")?.startsWith("image/")
-          ) {
-            return null;
-          }
-
-          const image = Buffer.from(await response.arrayBuffer());
-          if (image.length > 20_000_000) return null;
-          return image;
-        } catch {
-          return null;
-        }
-      })(),
-    );
+async function getPreview(theme) {
+  try {
+    return await readFile(`${previewDir}${theme.id}.webp`);
+  } catch {
+    return null;
   }
-
-  return imageRequests.get(url);
 }
 
 async function classify(theme) {
@@ -59,7 +37,7 @@ async function classify(theme) {
     };
   }
 
-  const image = await getPreview(theme.preview);
+  const image = await getPreview(theme);
   if (!image) {
     return {
       id: theme.id,
@@ -156,7 +134,7 @@ const darkIncludingBlackCount = results.filter(
   (result) => result.appearance === "dark" || result.mostlyBlack,
 ).length;
 
-if (!dryRun) {
+if (!dryRun && results.length > 0) {
   const resultsById = new Map(results.map((result) => [result.id, result]));
 
   for (const theme of themes) {
