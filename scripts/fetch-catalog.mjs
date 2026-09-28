@@ -96,7 +96,7 @@ for (const theme of themes) {
 
   if (prior && !samePreview) {
     changedPreviews += 1;
-    await unlink(`${previewDir}${theme.id}.webp`).catch(() => {});
+    await unlink(`${previewDir}${theme.id}.webp`).catch(() => { });
   }
 
   theme.appearance = samePreview ? prior.appearance : "mixed";
