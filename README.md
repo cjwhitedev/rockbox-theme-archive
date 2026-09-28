@@ -24,7 +24,8 @@ This is an unofficial project and isn't affiliated with Rockbox. Themes, preview
 - Filter by LCD resolution, firmware support, community rating, download size, screen shape, and preview appearance
 - Filter counts update to reflect the other filters you've applied
 - Removable filter chips, text search, and sorting
-- Appearance labels (mostly dark, mostly light, mostly black, mixed) to help find themes for OLED screens
+- Filters and sort are saved in the URL (for example `?lcd=320x240&palette=black&sort=downloads`), with share buttons for the filtered view or the plain page
+- Appearance labels (mostly dark, mostly light, mostly black, unidentified) to help find themes for OLED screens
 - Rockbox-inspired design with a light/dark mode toggle that remembers your choice
 
 ## Data notes

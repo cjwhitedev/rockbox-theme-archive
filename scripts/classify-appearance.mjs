@@ -53,7 +53,7 @@ async function classify(theme) {
   if (!theme.preview) {
     return {
       id: theme.id,
-      appearance: "unknown",
+      appearance: "mixed",
       blackShare: null,
       mostlyBlack: false,
     };
@@ -63,7 +63,7 @@ async function classify(theme) {
   if (!image) {
     return {
       id: theme.id,
-      appearance: "unknown",
+      appearance: "mixed",
       blackShare: null,
       mostlyBlack: false,
     };
@@ -80,7 +80,7 @@ async function classify(theme) {
     if (info.width < 8 || info.height < 8) {
       return {
         id: theme.id,
-        appearance: "unknown",
+        appearance: "mixed",
         blackShare: null,
         mostlyBlack: false,
       };
@@ -122,7 +122,7 @@ async function classify(theme) {
   } catch {
     return {
       id: theme.id,
-      appearance: "unknown",
+      appearance: "mixed",
       blackShare: null,
       mostlyBlack: false,
     };

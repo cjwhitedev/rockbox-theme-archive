@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   useDeferredValue,
   useEffect,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -26,7 +27,7 @@ export type Theme = {
   worksWithDev: boolean;
   releaseVersions: string[];
   preview: string;
-  appearance: "dark" | "light" | "mixed" | "unknown";
+  appearance: "dark" | "light" | "mixed";
   appearanceConfidence: number | null;
   blackShare: number | null;
   mostlyBlack: boolean;
@@ -46,8 +47,7 @@ const pageSize = 30;
 const appearanceLabels = {
   dark: "Mostly dark",
   light: "Mostly light",
-  mixed: "Mixed palette",
-  unknown: "Unknown",
+  mixed: "Unidentified",
 } as const;
 const colorModeChangeEvent = "rockbox-color-mode-change";
 
@@ -63,6 +63,68 @@ function getDarkModeSnapshot() {
     (preference === null &&
       window.matchMedia("(prefers-color-scheme: dark)").matches)
   );
+}
+
+const aiNoticeKey = "rockbox-ai-notice-dismissed";
+const aiNoticeChangeEvent = "rockbox-ai-notice-change";
+
+function subscribeToAiNotice(onChange: () => void) {
+  window.addEventListener(aiNoticeChangeEvent, onChange);
+  return () => window.removeEventListener(aiNoticeChangeEvent, onChange);
+}
+
+function getAiNoticeDismissedSnapshot() {
+  return window.localStorage.getItem(aiNoticeKey) === "true";
+}
+
+const filterDefaults = {
+  q: "",
+  lcd: "all",
+  firmware: "all",
+  rating: "0",
+  size: "all",
+  shape: "all",
+  palette: "all",
+  sort: "newest",
+};
+type FilterParam = keyof typeof filterDefaults;
+const filterParams = Object.keys(filterDefaults) as FilterParam[];
+const filterParamOptions: Partial<Record<FilterParam, readonly string[]>> = {
+  firmware: ["all", "current", "release"],
+  rating: ["0", "3", "4", "5"],
+  size: ["all", "small", "large"],
+  shape: ["all", "portrait", "landscape", "square"],
+  palette: ["all", "dark", "black", "light", "mixed"],
+  sort: ["newest", "downloads", "rating", "name", "smallest"],
+};
+const filterParamsChangeEvent = "rockbox-filter-params-change";
+
+function subscribeToFilterParams(onChange: () => void) {
+  window.addEventListener("popstate", onChange);
+  window.addEventListener(filterParamsChangeEvent, onChange);
+  return () => {
+    window.removeEventListener("popstate", onChange);
+    window.removeEventListener(filterParamsChangeEvent, onChange);
+  };
+}
+
+function getFilterParamsSnapshot() {
+  return window.location.search;
+}
+
+function writeFilterParams(changes: Partial<Record<FilterParam, string>>) {
+  const params = new URLSearchParams(window.location.search);
+  for (const [key, value] of Object.entries(changes) as [FilterParam, string][]) {
+    if (value === filterDefaults[key]) params.delete(key);
+    else params.set(key, value);
+  }
+  const query = params.toString();
+  window.history.replaceState(
+    null,
+    "",
+    `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`,
+  );
+  window.dispatchEvent(new Event(filterParamsChangeEvent));
 }
 
 function ThemeCard({
@@ -161,18 +223,73 @@ export default function ThemeBrowser({
     getDarkModeSnapshot,
     () => false,
   );
-  const [search, setSearch] = useState("");
+  const aiNoticeDismissed = useSyncExternalStore(
+    subscribeToAiNotice,
+    getAiNoticeDismissedSnapshot,
+    () => false,
+  );
+  const queryString = useSyncExternalStore(
+    subscribeToFilterParams,
+    getFilterParamsSnapshot,
+    () => "",
+  );
+  const resolutions = [...new Set(themes.map((theme) => theme.lcd))].sort((left, right) => {
+    const [leftWidth, leftHeight] = left.split("x").map(Number);
+    const [rightWidth, rightHeight] = right.split("x").map(Number);
+    return leftWidth * leftHeight - rightWidth * rightHeight;
+  });
+  const urlParams = new URLSearchParams(queryString);
+  const readParam = (key: FilterParam) => {
+    const value = urlParams.get(key);
+    const allowed = key === "lcd" ? resolutions : filterParamOptions[key];
+    if (value === null || (allowed && !allowed.includes(value))) {
+      return filterDefaults[key];
+    }
+    return value;
+  };
+  const search = readParam("q");
   const deferredSearch = useDeferredValue(search);
-  const [resolution, setResolution] = useState("all");
-  const [compatibility, setCompatibility] = useState("all");
-  const [minimumRating, setMinimumRating] = useState("0");
-  const [packageSize, setPackageSize] = useState("all");
-  const [orientation, setOrientation] = useState("all");
-  const [appearance, setAppearance] = useState<
-    "all" | "black" | Theme["appearance"]
-  >("all");
-  const [sortBy, setSortBy] = useState<SortOption>("newest");
+  const resolution = readParam("lcd");
+  const compatibility = readParam("firmware");
+  const minimumRating = readParam("rating");
+  const packageSize = readParam("size");
+  const orientation = readParam("shape");
+  const appearance = readParam("palette") as "all" | "black" | Theme["appearance"];
+  const sortBy = readParam("sort") as SortOption;
   const [visibleCount, setVisibleCount] = useState(pageSize);
+  const [shareStatus, setShareStatus] = useState("");
+  const shareStatusTimer = useRef<number | undefined>(undefined);
+
+  const updateFilters = (changes: Partial<Record<FilterParam, string>>) => {
+    writeFilterParams(changes);
+    setVisibleCount(pageSize);
+  };
+  const hasFilterParams = filterParams.some((key) => urlParams.has(key));
+
+  const shareLink = async (includeFilters: boolean) => {
+    const url = new URL(window.location.pathname, window.location.origin);
+    if (includeFilters) {
+      for (const key of filterParams) {
+        const value = urlParams.get(key);
+        if (value !== null) url.searchParams.set(key, value);
+      }
+    }
+    const link = url.toString();
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: document.title, url: link });
+        return;
+      }
+      await navigator.clipboard.writeText(link);
+      setShareStatus(includeFilters ? "Link with filters copied" : "Link copied");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setShareStatus("Couldn't share this link");
+    }
+    window.clearTimeout(shareStatusTimer.current);
+    shareStatusTimer.current = window.setTimeout(() => setShareStatus(""), 2500);
+  };
 
   useEffect(() => {
     document.documentElement.dataset.theme = darkMode ? "dark" : "light";
@@ -183,6 +300,11 @@ export default function ThemeBrowser({
     window.localStorage.setItem("rockbox-theme-mode", nextMode ? "dark" : "light");
     document.documentElement.dataset.theme = nextMode ? "dark" : "light";
     window.dispatchEvent(new Event(colorModeChangeEvent));
+  };
+
+  const dismissAiNotice = () => {
+    window.localStorage.setItem(aiNoticeKey, "true");
+    window.dispatchEvent(new Event(aiNoticeChangeEvent));
   };
 
   const searchTerm = deferredSearch.trim().toLocaleLowerCase();
@@ -252,11 +374,6 @@ export default function ThemeBrowser({
     predicate: (theme: Theme) => boolean = () => true,
   ) => themes.filter((theme) => matchesTheme(theme, omitted) && predicate(theme)).length;
 
-  const resolutions = [...new Set(themes.map((theme) => theme.lcd))].sort((left, right) => {
-    const [leftWidth, leftHeight] = left.split("x").map(Number);
-    const [rightWidth, rightHeight] = right.split("x").map(Number);
-    return leftWidth * leftHeight - rightWidth * rightHeight;
-  });
   const resolutionCounts = Object.fromEntries(
     resolutions.map((item) => [
       item,
@@ -307,7 +424,6 @@ export default function ThemeBrowser({
     black: countMatches("appearance", (theme) => theme.mostlyBlack),
     light: countMatches("appearance", (theme) => theme.appearance === "light"),
     mixed: countMatches("appearance", (theme) => theme.appearance === "mixed"),
-    unknown: countMatches("appearance", (theme) => theme.appearance === "unknown"),
   };
   const filteredThemes = themes.filter((theme) => matchesTheme(theme));
 
@@ -321,17 +437,7 @@ export default function ThemeBrowser({
     return right.submittedAt.localeCompare(left.submittedAt);
   });
 
-  const clearFilters = () => {
-    setSearch("");
-    setResolution("all");
-    setCompatibility("all");
-    setMinimumRating("0");
-    setPackageSize("all");
-    setOrientation("all");
-    setAppearance("all");
-    setSortBy("newest");
-    setVisibleCount(pageSize);
-  };
+  const clearFilters = () => updateFilters(filterDefaults);
 
   const activeFilters: Array<{
     key: string;
@@ -342,42 +448,42 @@ export default function ThemeBrowser({
     activeFilters.push({
       key: "search",
       label: `Search: ${search.trim()}`,
-      clear: () => setSearch(""),
+      clear: () => updateFilters({ q: "" }),
     });
   }
   if (resolution !== "all") {
     activeFilters.push({
       key: "resolution",
       label: `LCD: ${resolution}`,
-      clear: () => setResolution("all"),
+      clear: () => updateFilters({ lcd: "all" }),
     });
   }
   if (compatibility !== "all") {
     activeFilters.push({
       key: "compatibility",
       label: compatibility === "current" ? "Current build" : "Release build",
-      clear: () => setCompatibility("all"),
+      clear: () => updateFilters({ firmware: "all" }),
     });
   }
   if (minimumRating !== "0") {
     activeFilters.push({
       key: "rating",
       label: `Rating: ${minimumRating}+ stars`,
-      clear: () => setMinimumRating("0"),
+      clear: () => updateFilters({ rating: "0" }),
     });
   }
   if (packageSize !== "all") {
     activeFilters.push({
       key: "size",
       label: packageSize === "small" ? "Under 100 KB" : "100 KB or more",
-      clear: () => setPackageSize("all"),
+      clear: () => updateFilters({ size: "all" }),
     });
   }
   if (orientation !== "all") {
     activeFilters.push({
       key: "orientation",
       label: `Screen: ${orientation}`,
-      clear: () => setOrientation("all"),
+      clear: () => updateFilters({ shape: "all" }),
     });
   }
   if (appearance !== "all") {
@@ -386,7 +492,7 @@ export default function ThemeBrowser({
     activeFilters.push({
       key: "appearance",
       label: `Palette: ${appearanceLabel}`,
-      clear: () => setAppearance("all"),
+      clear: () => updateFilters({ palette: "all" }),
     });
   }
 
@@ -397,6 +503,7 @@ export default function ThemeBrowser({
           aria-label="Rockbox Theme Library home"
           className="brand-lockup"
           href="/"
+          onClick={clearFilters}
         >
           <span aria-hidden="true" className="brand-mark">
             <span className="brand-wordmark">Rockbox</span>
@@ -404,7 +511,7 @@ export default function ThemeBrowser({
           </span>
           <span>
             THEME ARCHIVE
-            <span className="brand-subtitle">Community screen library</span>
+            <span className="brand-subtitle">Community Theme Library</span>
           </span>
         </Link>
         <div className="topbar-actions">
@@ -431,11 +538,36 @@ export default function ThemeBrowser({
         </div>
       </header>
 
+      {!aiNoticeDismissed && (
+        <aside aria-label="AI disclosure" className="ai-notice">
+          <strong className="ai-notice-label">Built with AI</strong>
+          <p>
+            This site was written almost entirely by GitHub Copilot, an AI
+            coding agent. It&apos;s unofficial and may contain mistakes.{" "}
+            <a
+              href="https://github.com/cjwhitedev/rockbox-theme-archive"
+              rel="noreferrer"
+              target="_blank"
+            >
+              View the source on GitHub <span aria-hidden="true">↗</span>
+            </a>
+          </p>
+          <button
+            aria-label="Dismiss AI notice"
+            className="ai-notice-dismiss"
+            onClick={dismissAiNotice}
+            type="button"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </aside>
+      )}
+
       <section aria-labelledby="page-title" className="intro">
         <div>
           <div className="eyebrow">ROCKBOX / COMMUNITY THEME ARCHIVE</div>
           <h1 id="page-title">
-            Tune your <span>Rockbox.</span>
+            Rockbox <span>themes</span>
           </h1>
         </div>
         <div aria-label="Catalog summary" className="intro-stats">
@@ -468,38 +600,24 @@ export default function ThemeBrowser({
           </div>
           <div className="filter-content">
             <section className="filter-section">
-              <h3>LCD resolution</h3>
-              <div className="resolution-list">
-                <button
-                  aria-pressed={resolution === "all"}
-                  className="resolution-option"
-                  onClick={() => {
-                    setResolution("all");
-                    setVisibleCount(pageSize);
-                  }}
-                  type="button"
-                >
-                  <span>All screens</span>
-                  <span className="resolution-count">{allResolutionCount}</span>
-                </button>
+              <label className="filter-section-label" htmlFor="resolution">
+                LCD resolution
+              </label>
+              <select
+                className="filter-select"
+                id="resolution"
+                onChange={(event) => updateFilters({ lcd: event.target.value })}
+                value={resolution}
+              >
+                <option value="all">
+                  All screens ({numberFormat.format(allResolutionCount)})
+                </option>
                 {resolutions.map((item) => (
-                  <button
-                    aria-pressed={resolution === item}
-                    className="resolution-option"
-                    key={item}
-                    onClick={() => {
-                      setResolution(item);
-                      setVisibleCount(pageSize);
-                    }}
-                    type="button"
-                  >
-                    <span>{item}</span>
-                    <span className="resolution-count">
-                      {resolutionCounts[item]}
-                    </span>
-                  </button>
+                  <option key={item} value={item}>
+                    {item} ({numberFormat.format(resolutionCounts[item])})
+                  </option>
                 ))}
-              </div>
+              </select>
             </section>
 
             <section className="filter-section">
@@ -509,10 +627,9 @@ export default function ThemeBrowser({
               <select
                 className="filter-select"
                 id="compatibility"
-                onChange={(event) => {
-                  setCompatibility(event.target.value);
-                  setVisibleCount(pageSize);
-                }}
+                onChange={(event) =>
+                  updateFilters({ firmware: event.target.value })
+                }
                 value={compatibility}
               >
                 <option value="all">
@@ -534,10 +651,7 @@ export default function ThemeBrowser({
               <select
                 className="filter-select"
                 id="minimum-rating"
-                onChange={(event) => {
-                  setMinimumRating(event.target.value);
-                  setVisibleCount(pageSize);
-                }}
+                onChange={(event) => updateFilters({ rating: event.target.value })}
                 value={minimumRating}
               >
                 <option value="0">
@@ -562,10 +676,7 @@ export default function ThemeBrowser({
               <select
                 className="filter-select"
                 id="package-size"
-                onChange={(event) => {
-                  setPackageSize(event.target.value);
-                  setVisibleCount(pageSize);
-                }}
+                onChange={(event) => updateFilters({ size: event.target.value })}
                 value={packageSize}
               >
                 <option value="all">
@@ -587,10 +698,7 @@ export default function ThemeBrowser({
               <select
                 className="filter-select"
                 id="orientation"
-                onChange={(event) => {
-                  setOrientation(event.target.value);
-                  setVisibleCount(pageSize);
-                }}
+                onChange={(event) => updateFilters({ shape: event.target.value })}
                 value={orientation}
               >
                 <option value="all">
@@ -615,10 +723,7 @@ export default function ThemeBrowser({
               <select
                 className="filter-select"
                 id="appearance"
-                onChange={(event) => {
-                  setAppearance(event.target.value as typeof appearance);
-                  setVisibleCount(pageSize);
-                }}
+                onChange={(event) => updateFilters({ palette: event.target.value })}
                 value={appearance}
               >
                 <option value="all">
@@ -634,10 +739,7 @@ export default function ThemeBrowser({
                   Mostly light ({numberFormat.format(appearanceCounts.light)})
                 </option>
                 <option value="mixed">
-                  Mixed palette ({numberFormat.format(appearanceCounts.mixed)})
-                </option>
-                <option value="unknown">
-                  Unknown ({numberFormat.format(appearanceCounts.unknown)})
+                  Unidentified ({numberFormat.format(appearanceCounts.mixed)})
                 </option>
               </select>
               <p className="filter-note">
@@ -656,10 +758,7 @@ export default function ThemeBrowser({
                 autoComplete="off"
                 className="search-input"
                 id="theme-search"
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setVisibleCount(pageSize);
-                }}
+                onChange={(event) => updateFilters({ q: event.target.value })}
                 placeholder="Theme, author, or description"
                 type="search"
                 value={search}
@@ -670,10 +769,7 @@ export default function ThemeBrowser({
               <select
                 className="sort-select"
                 id="sort-themes"
-                onChange={(event) => {
-                  setSortBy(event.target.value as SortOption);
-                  setVisibleCount(pageSize);
-                }}
+                onChange={(event) => updateFilters({ sort: event.target.value })}
                 value={sortBy}
               >
                 <option value="newest">Recently added</option>
@@ -692,10 +788,7 @@ export default function ThemeBrowser({
                   aria-label={`Remove ${filter.label} filter`}
                   className="filter-chip"
                   key={filter.key}
-                  onClick={() => {
-                    filter.clear();
-                    setVisibleCount(pageSize);
-                  }}
+                  onClick={filter.clear}
                   type="button"
                 >
                   <span>{filter.label}</span>
@@ -711,6 +804,32 @@ export default function ThemeBrowser({
             <span className="result-count">
               {numberFormat.format(filteredThemes.length)} themes found
             </span>
+            <div className="share-actions">
+              <span className="share-status" role="status">
+                {shareStatus}
+              </span>
+              <button
+                className="share-button"
+                disabled={!hasFilterParams}
+                onClick={() => shareLink(true)}
+                title={
+                  hasFilterParams
+                    ? "Share a link that keeps your current filters and sort"
+                    : "Choose a filter or sort to share it"
+                }
+                type="button"
+              >
+                Share with filters
+              </button>
+              <button
+                className="share-button"
+                onClick={() => shareLink(false)}
+                title="Share a link to the full archive"
+                type="button"
+              >
+                Share page
+              </button>
+            </div>
             <span className="result-meta">
               CATALOG SNAPSHOT {capturedAt.slice(0, 10)}
             </span>
@@ -758,6 +877,10 @@ export default function ThemeBrowser({
       </main>
 
       <footer className="site-footer">
+        <span>
+          Built with AI: written by GitHub Copilot. Unofficial and may contain
+          mistakes.
+        </span>
         <span>Theme metadata and images belong to their original creators.</span>
         <span>
           Data from{" "}
@@ -767,6 +890,14 @@ export default function ThemeBrowser({
             target="_blank"
           >
             themes.rockbox.org
+          </a>
+          {" · "}
+          <a
+            href="https://github.com/cjwhitedev/rockbox-theme-archive"
+            rel="noreferrer"
+            target="_blank"
+          >
+            Source on GitHub
           </a>
         </span>
       </footer>
