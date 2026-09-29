@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   useDeferredValue,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -37,7 +38,14 @@ export type Theme = {
 
 type ThemeBrowserProps = {
   themes: Theme[];
+  devices: Device[];
   capturedAt: string;
+};
+
+export type Device = {
+  id: string;
+  name: string;
+  themeIds: number[];
 };
 
 type SortOption = "newest" | "downloads" | "rating" | "name" | "smallest";
@@ -80,6 +88,7 @@ function getAiNoticeDismissedSnapshot() {
 const filterDefaults = {
   q: "",
   lcd: "all",
+  device: "all",
   firmware: "all",
   rating: "0",
   size: "all",
@@ -216,6 +225,7 @@ function ThemeCard({
 
 export default function ThemeBrowser({
   themes,
+  devices,
   capturedAt,
 }: ThemeBrowserProps) {
   const darkMode = useSyncExternalStore(
@@ -239,9 +249,18 @@ export default function ThemeBrowser({
     return leftWidth * leftHeight - rightWidth * rightHeight;
   });
   const urlParams = new URLSearchParams(queryString);
+  const deviceThemeIds = useMemo(
+    () => new Map(devices.map((device) => [device.id, new Set(device.themeIds)])),
+    [devices],
+  );
   const readParam = (key: FilterParam) => {
     const value = urlParams.get(key);
-    const allowed = key === "lcd" ? resolutions : filterParamOptions[key];
+    const allowed =
+      key === "lcd"
+        ? resolutions
+        : key === "device"
+          ? [...deviceThemeIds.keys()]
+          : filterParamOptions[key];
     if (value === null || (allowed && !allowed.includes(value))) {
       return filterDefaults[key];
     }
@@ -250,6 +269,8 @@ export default function ThemeBrowser({
   const search = readParam("q");
   const deferredSearch = useDeferredValue(search);
   const resolution = readParam("lcd");
+  const device = readParam("device");
+  const selectedDeviceThemes = deviceThemeIds.get(device);
   const compatibility = readParam("firmware");
   const minimumRating = readParam("rating");
   const packageSize = readParam("size");
@@ -311,6 +332,7 @@ export default function ThemeBrowser({
   type FilterDimension =
     | "search"
     | "resolution"
+    | "device"
     | "compatibility"
     | "rating"
     | "size"
@@ -331,6 +353,10 @@ export default function ThemeBrowser({
         .includes(searchTerm);
     const matchesResolution =
       omitted === "resolution" || resolution === "all" || theme.lcd === resolution;
+    const matchesDevice =
+      omitted === "device" ||
+      device === "all" ||
+      Boolean(selectedDeviceThemes?.has(theme.id));
     const matchesCompatibility =
       omitted === "compatibility" ||
       compatibility === "all" ||
@@ -362,6 +388,7 @@ export default function ThemeBrowser({
     return (
       matchesSearch &&
       matchesResolution &&
+      matchesDevice &&
       matchesCompatibility &&
       matchesRating &&
       matchesSize &&
@@ -381,6 +408,13 @@ export default function ThemeBrowser({
     ]),
   ) as Record<string, number>;
   const allResolutionCount = countMatches("resolution");
+  const deviceBase = themes.filter((theme) => matchesTheme(theme, "device"));
+  const deviceCounts = Object.fromEntries(
+    devices.map((item) => {
+      const ids = deviceThemeIds.get(item.id);
+      return [item.id, deviceBase.filter((theme) => ids?.has(theme.id)).length];
+    }),
+  ) as Record<string, number>;
   const compatibilityCounts = {
     all: countMatches("compatibility"),
     current: countMatches("compatibility", (theme) => theme.worksWithDev),
@@ -456,6 +490,13 @@ export default function ThemeBrowser({
       key: "resolution",
       label: `LCD: ${resolution}`,
       clear: () => updateFilters({ lcd: "all" }),
+    });
+  }
+  if (device !== "all") {
+    activeFilters.push({
+      key: "device",
+      label: `Device: ${devices.find((item) => item.id === device)?.name ?? device}`,
+      clear: () => updateFilters({ device: "all" }),
     });
   }
   if (compatibility !== "all") {
@@ -615,6 +656,27 @@ export default function ThemeBrowser({
                 {resolutions.map((item) => (
                   <option key={item} value={item}>
                     {item} ({numberFormat.format(resolutionCounts[item])})
+                  </option>
+                ))}
+              </select>
+            </section>
+
+            <section className="filter-section">
+              <label className="filter-section-label" htmlFor="device">
+                Device
+              </label>
+              <select
+                className="filter-select"
+                id="device"
+                onChange={(event) => updateFilters({ device: event.target.value })}
+                value={device}
+              >
+                <option value="all">
+                  All devices ({numberFormat.format(deviceBase.length)})
+                </option>
+                {devices.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} ({numberFormat.format(deviceCounts[item.id])})
                   </option>
                 ))}
               </select>

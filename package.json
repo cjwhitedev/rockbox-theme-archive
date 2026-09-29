@@ -10,7 +10,8 @@
     "classify:appearance": "node scripts/classify-appearance.mjs",
     "download:previews": "node scripts/download-previews.mjs",
     "fetch:catalog": "node scripts/fetch-catalog.mjs",
-    "data:update": "npm run fetch:catalog && npm run download:previews && npm run classify:appearance"
+    "fetch:devices": "node scripts/fetch-devices.mjs",
+    "data:update": "npm run fetch:catalog && npm run download:previews && npm run classify:appearance && npm run fetch:devices"
   },
   "dependencies": {
     "next": "16.3.6",

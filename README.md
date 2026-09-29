@@ -21,7 +21,7 @@ This is an unofficial project and isn't affiliated with Rockbox. Themes, preview
 
 ## Features
 
-- Filter by LCD resolution, firmware support, community rating, download size, screen shape, and preview appearance
+- Filter by LCD resolution, device, firmware support, community rating, download size, screen shape, and preview appearance
 - Filter counts update to reflect the other filters you've applied
 - Removable filter chips, text search, and sorting
 - Filters and sort are saved in the URL (for example `?lcd=320x240&palette=black&sort=downloads`), with share buttons for the filtered view or the plain page
@@ -31,6 +31,7 @@ This is an unofficial project and isn't affiliated with Rockbox. Themes, preview
 ## Data notes
 
 - **Catalog data:** `public/data/themes.json` is built from the [all themes page](https://themes.rockbox.org/index.php?allthemes), since Rockbox doesn't offer a public API. It's refreshed each time the site deploys, so it's as current as the last deploy.
+- **Device data:** `public/data/devices.json` lists the themes that pass Rockbox's own compatibility check for each device, from the same source Rockbox Utility uses. Devices with the same screen size can support different themes, so this is more precise than filtering by LCD resolution.
 - **Appearance labels are estimates.** They're based on the brightness of each theme's first preview image. "Mostly black" means at least 55% of that preview's pixels are near-black. A theme may look different on your device.
 
 ## Tech stack
@@ -54,19 +55,22 @@ Open http://localhost:3000.
 | `npm run dev`                 | Starts the development server                                                                 |
 | `npm run build`               | Builds the static site into `out/`                                                            |
 | `npm run lint`                | Runs ESLint                                                                                   |
-| `npm run data:update`         | Runs the three data scripts below in order                                                    |
+| `npm run data:update`         | Runs the four data scripts below in order                                                     |
 | `npm run fetch:catalog`       | Rebuilds `themes.json` from the Rockbox all themes page (one request)                         |
 | `npm run download:previews`   | Downloads missing preview images into `public/previews/` as WebP (existing files are skipped) |
 | `npm run classify:appearance` | Labels themes that don't have an appearance yet, using the local preview images               |
+| `npm run fetch:devices`       | Rebuilds `devices.json` with each device's compatible themes (about 85 spaced-out requests)   |
 
 `download:previews` and `classify:appearance` accept `--limit=N` for trial runs. `classify:appearance` also accepts `--dry-run`, and `--all` to relabel every theme.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the project layout, how to add a filter, and the full edit-and-deploy workflow.
 
 ## Deployment
 
 Every push to `main` runs [.github/workflows/deploy.yml](.github/workflows/deploy.yml), which:
 
 1. Installs dependencies with `npm ci` on Node 22
-2. Runs `npm run data:update` to pick up new and changed themes. Only missing preview images are downloaded, to keep the load on the Rockbox server low. If Rockbox can't be reached, the build continues with the data committed in the repo.
+2. Runs `npm run data:update` to pick up new and changed themes and refresh each device's compatible themes. Only missing preview images are downloaded, and device requests are spaced out, to keep the load on the Rockbox server low. If Rockbox can't be reached, the build continues with the data committed in the repo.
 3. Builds with `NEXT_PUBLIC_BASE_PATH=/<repo-name>` so links and images work under the GitHub Pages subpath
 4. Uploads the `out/` folder and deploys it to GitHub Pages
 
