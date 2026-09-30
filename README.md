@@ -21,7 +21,7 @@ This is an unofficial project and isn't affiliated with Rockbox. Themes, preview
 
 ## Features
 
-- Filter by LCD resolution, device, firmware support, community rating, download size, screen shape, and preview appearance
+- Filter by LCD resolution, device, touch controls, firmware support, community rating, download size, screen shape, and preview appearance
 - Filter counts update to reflect the other filters you've applied
 - Removable filter chips, text search, and sorting
 - Filters and sort are saved in the URL (for example `?lcd=320x240&palette=black&sort=downloads`), with share buttons for the filtered view or the plain page
@@ -32,6 +32,7 @@ This is an unofficial project and isn't affiliated with Rockbox. Themes, preview
 
 - **Catalog data:** `public/data/themes.json` is built from the [all themes page](https://themes.rockbox.org/index.php?allthemes), since Rockbox doesn't offer a public API. It's refreshed each time the site deploys, so it's as current as the last deploy.
 - **Device data:** `public/data/devices.json` lists the themes that pass Rockbox's own compatibility check for each device, from the same source Rockbox Utility uses. Devices with the same screen size can support different themes, so this is more precise than filtering by LCD resolution.
+- **Touch controls:** `public/data/touch.json` records whether each theme's skin files define touch regions. Rockbox doesn't publish this, so it's found by downloading each theme once with `npm run scan:touch`, which is run locally and adds 1 to each scanned theme's download count on Rockbox.
 - **Appearance labels are estimates.** They're based on the brightness of each theme's first preview image. "Mostly black" means at least 55% of that preview's pixels are near-black. A theme may look different on your device.
 
 ## Tech stack
@@ -60,6 +61,7 @@ Open http://localhost:3000.
 | `npm run download:previews`   | Downloads missing preview images into `public/previews/` as WebP (existing files are skipped) |
 | `npm run classify:appearance` | Labels themes that don't have an appearance yet, using the local preview images               |
 | `npm run fetch:devices`       | Rebuilds `devices.json` with each device's compatible themes (about 85 spaced-out requests)   |
+| `npm run scan:touch`          | Downloads themes not yet scanned and records whether they have touch controls (run locally)   |
 
 `download:previews` and `classify:appearance` accept `--limit=N` for trial runs. `classify:appearance` also accepts `--dry-run`, and `--all` to relabel every theme.
 

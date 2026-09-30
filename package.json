@@ -11,6 +11,7 @@
     "download:previews": "node scripts/download-previews.mjs",
     "fetch:catalog": "node scripts/fetch-catalog.mjs",
     "fetch:devices": "node scripts/fetch-devices.mjs",
+    "scan:touch": "node scripts/scan-touch.mjs",
     "data:update": "npm run fetch:catalog && npm run download:previews && npm run classify:appearance && npm run fetch:devices"
   },
   "dependencies": {

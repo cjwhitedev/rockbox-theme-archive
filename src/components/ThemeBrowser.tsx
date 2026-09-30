@@ -32,6 +32,7 @@ export type Theme = {
   appearanceConfidence: number | null;
   blackShare: number | null;
   mostlyBlack: boolean;
+  touch: boolean | null;
   detailUrl: string;
   downloadUrl: string;
 };
@@ -89,6 +90,7 @@ const filterDefaults = {
   q: "",
   lcd: "all",
   device: "all",
+  touch: "all",
   firmware: "all",
   rating: "0",
   size: "all",
@@ -99,6 +101,7 @@ const filterDefaults = {
 type FilterParam = keyof typeof filterDefaults;
 const filterParams = Object.keys(filterDefaults) as FilterParam[];
 const filterParamOptions: Partial<Record<FilterParam, readonly string[]>> = {
+  touch: ["all", "yes", "no"],
   firmware: ["all", "current", "release"],
   rating: ["0", "3", "4", "5"],
   size: ["all", "small", "large"],
@@ -271,6 +274,7 @@ export default function ThemeBrowser({
   const resolution = readParam("lcd");
   const device = readParam("device");
   const selectedDeviceThemes = deviceThemeIds.get(device);
+  const touch = readParam("touch");
   const compatibility = readParam("firmware");
   const minimumRating = readParam("rating");
   const packageSize = readParam("size");
@@ -333,6 +337,7 @@ export default function ThemeBrowser({
     | "search"
     | "resolution"
     | "device"
+    | "touch"
     | "compatibility"
     | "rating"
     | "size"
@@ -357,6 +362,11 @@ export default function ThemeBrowser({
       omitted === "device" ||
       device === "all" ||
       Boolean(selectedDeviceThemes?.has(theme.id));
+    const matchesTouch =
+      omitted === "touch" ||
+      touch === "all" ||
+      (touch === "yes" && theme.touch === true) ||
+      (touch === "no" && theme.touch === false);
     const matchesCompatibility =
       omitted === "compatibility" ||
       compatibility === "all" ||
@@ -389,6 +399,7 @@ export default function ThemeBrowser({
       matchesSearch &&
       matchesResolution &&
       matchesDevice &&
+      matchesTouch &&
       matchesCompatibility &&
       matchesRating &&
       matchesSize &&
@@ -415,6 +426,12 @@ export default function ThemeBrowser({
       return [item.id, deviceBase.filter((theme) => ids?.has(theme.id)).length];
     }),
   ) as Record<string, number>;
+  const touchCounts = {
+    all: countMatches("touch"),
+    yes: countMatches("touch", (theme) => theme.touch === true),
+    no: countMatches("touch", (theme) => theme.touch === false),
+  };
+  const touchChecked = themes.filter((theme) => theme.touch !== null).length;
   const compatibilityCounts = {
     all: countMatches("compatibility"),
     current: countMatches("compatibility", (theme) => theme.worksWithDev),
@@ -497,6 +514,13 @@ export default function ThemeBrowser({
       key: "device",
       label: `Device: ${devices.find((item) => item.id === device)?.name ?? device}`,
       clear: () => updateFilters({ device: "all" }),
+    });
+  }
+  if (touch !== "all") {
+    activeFilters.push({
+      key: "touch",
+      label: touch === "yes" ? "Touch controls" : "No touch controls",
+      clear: () => updateFilters({ touch: "all" }),
     });
   }
   if (compatibility !== "all") {
@@ -680,6 +704,34 @@ export default function ThemeBrowser({
                   </option>
                 ))}
               </select>
+            </section>
+
+            <section className="filter-section">
+              <label className="filter-section-label" htmlFor="touch">
+                Touch controls
+              </label>
+              <select
+                className="filter-select"
+                id="touch"
+                onChange={(event) => updateFilters({ touch: event.target.value })}
+                value={touch}
+              >
+                <option value="all">
+                  Any ({numberFormat.format(touchCounts.all)})
+                </option>
+                <option value="yes">
+                  Has touch controls ({numberFormat.format(touchCounts.yes)})
+                </option>
+                <option value="no">
+                  No touch controls ({numberFormat.format(touchCounts.no)})
+                </option>
+              </select>
+              {touchChecked < themes.length && (
+                <p className="filter-note">
+                  Checked for {numberFormat.format(touchChecked)} of{" "}
+                  {numberFormat.format(themes.length)} themes so far.
+                </p>
+              )}
             </section>
 
             <section className="filter-section">

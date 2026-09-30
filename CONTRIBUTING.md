@@ -26,6 +26,7 @@ Open http://localhost:3000. The page reloads as you edit.
 | `src/app/layout.tsx`              | Page title, description, and fonts                                                   |
 | `public/data/themes.json`         | Theme catalog built by `fetch:catalog`, plus appearance labels                       |
 | `public/data/devices.json`        | Devices and the theme IDs that work on each, built by `fetch:devices`                |
+| `public/data/touch.json`          | Which themes have touch controls, built by `scan:touch` (run locally, not on deploy) |
 | `public/previews/`                | Preview images as `<theme id>.webp`, downloaded by `download:previews`               |
 | `scripts/`                        | The data scripts (see below)                                                         |
 | `.github/workflows/deploy.yml`    | Builds and deploys to GitHub Pages                                                   |
@@ -53,7 +54,7 @@ Clear all and the share buttons pick up new filters automatically.
 
 ### Change the data
 
-Don't edit `themes.json` or `devices.json` by hand. The next deploy overwrites them. Change the script that builds them instead.
+Don't edit `themes.json` or `devices.json` by hand. The next deploy overwrites them. Change the script that builds them instead. `touch.json` isn't overwritten by deploys, but it should still only be changed through `scan:touch`.
 
 ## Data scripts
 
@@ -73,6 +74,24 @@ Notes:
 - `fetch:catalog` keeps existing appearance labels unless a theme's preview image changed.
 - `fetch:devices` keeps a device's previous list if its request fails.
 - `classify:appearance --all` relabels every theme using the local images. It makes no requests.
+
+### Touch controls scan (run locally)
+
+```bash
+npm run scan:touch
+```
+
+Rockbox's data doesn't say whether a theme has touch controls, so this script downloads each theme's package and checks its skin files for touch regions (`%T(` or `%Tl` tags). Results are saved by theme ID in `public/data/touch.json`.
+
+- **Each theme is downloaded at most once.** Themes already in `touch.json` are skipped, so each run only downloads themes added since the last one.
+- **Each download adds 1 to that theme's public download count on Rockbox,** because the only way to get the files is the site's download link. That's why this runs locally rather than on every deploy: the deploy doesn't commit its data back, so it would download the same new themes on every push.
+- **Downloads are spaced 1 second apart.** The first full scan covers about 1,600 themes (roughly 477 MB) and takes well over half an hour. Each result is saved as soon as that theme is scanned, so you can stop it with <kbd>Ctrl</kbd>+<kbd>C</kbd> and run it again later to continue.
+- **If `touch.json` can't be read,** the script stops instead of starting over, since starting over would re-download every theme. Restore the file from git (`git checkout public/data/touch.json`) and run it again.
+- **`--limit=N`** scans at most N unscanned themes, for example `npm run scan:touch -- --limit=50`.
+- **Themes whose download returns 404 on Rockbox** are recorded as `unavailable` and skipped on later runs. To try them again, use `npm run scan:touch -- --retry-unavailable`. Other failures, such as timeouts, are retried automatically next run.
+- It uses the `unzip` command, which is included on macOS and most Linux systems.
+
+After scanning, commit `public/data/touch.json`. Themes that haven't been scanned are left out of both touch options, and the filter shows how many have been checked.
 
 ## Before you commit
 
