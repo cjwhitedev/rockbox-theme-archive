@@ -93,6 +93,8 @@ Rockbox's data doesn't say whether a theme has touch controls, so this script do
 
 After scanning, commit `public/data/touch.json`. Themes that haven't been scanned are left out of both touch options, and the filter shows how many have been checked.
 
+The cache only lasts as long as the committed file. If `touch.json` is deleted or reset before being committed, or you scan on another computer without running `git pull` first, those themes are downloaded again. When a theme is updated on Rockbox it gets a new ID, so each new version is scanned once.
+
 ## Before you commit
 
 Run the same checks the deploy relies on:
