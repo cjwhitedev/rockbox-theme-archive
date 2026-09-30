@@ -26,6 +26,7 @@ This is an unofficial project and isn't affiliated with Rockbox. Themes, preview
 - Removable filter chips, text search, and sorting
 - Filters and sort are saved in the URL (for example `?lcd=320x240&palette=black&sort=downloads`), with share buttons for the filtered view or the plain page
 - Appearance labels (mostly dark, mostly light, mostly black, unidentified) to help find themes for OLED screens
+- Touch labels on each card (touch, no touch, or unknown) with matching icons
 - Rockbox-inspired design with a light/dark mode toggle that remembers your choice
 
 ## Data notes

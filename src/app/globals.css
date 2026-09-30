@@ -441,7 +441,10 @@ select:focus-visible {
 }
 
 .share-button {
+  display: inline-flex;
   min-height: 30px;
+  align-items: center;
+  gap: 6px;
   border: 1px solid var(--line);
   border-radius: 2px;
   padding: 0 10px;
@@ -450,6 +453,12 @@ select:focus-visible {
   cursor: pointer;
   font-size: 11px;
   font-weight: 600;
+}
+
+.share-icon {
+  width: 13px;
+  height: 13px;
+  flex: none;
 }
 
 .share-button:hover:not(:disabled) {
@@ -547,17 +556,9 @@ select:focus-visible {
   padding: 14px;
 }
 
-.theme-card-topline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 7px;
-}
-
 .theme-status {
   display: inline-flex;
-  min-height: 22px;
+  min-height: 20px;
   align-items: center;
   border-radius: 4px;
   padding: 0 7px;
@@ -605,6 +606,20 @@ select:focus-visible {
   -webkit-line-clamp: 2;
 }
 
+.theme-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.theme-updated {
+  margin: 0 0 10px;
+  color: var(--metric);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
 .theme-metrics {
   display: flex;
   flex-wrap: wrap;
@@ -620,6 +635,7 @@ select:focus-visible {
   display: inline-flex;
   min-height: 20px;
   align-items: center;
+  gap: 4px;
   border: 1px solid transparent;
   border-radius: 4px;
   padding: 0 6px;
@@ -650,6 +666,43 @@ select:focus-visible {
   border-color: #c7d8d0;
   background: #dcebe5;
   color: #285954;
+}
+
+.touch-pill {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 0 6px;
+  color: var(--metric);
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.touch-pill--yes {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+.touch-pill--unidentified {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.pill-icon {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.label-icon {
+  width: 12px;
+  height: 12px;
+  margin-right: 5px;
+  vertical-align: -2px;
 }
 
 .theme-actions {

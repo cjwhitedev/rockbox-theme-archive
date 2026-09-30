@@ -91,7 +91,7 @@ Rockbox's data doesn't say whether a theme has touch controls, so this script do
 - **Themes whose download returns 404 on Rockbox** are recorded as `unavailable` and skipped on later runs. To try them again, use `npm run scan:touch -- --retry-unavailable`. Other failures, such as timeouts, are retried automatically next run.
 - It uses the `unzip` command, which is included on macOS and most Linux systems.
 
-After scanning, commit `public/data/touch.json`. Themes that haven't been scanned are left out of both touch options, and the filter shows how many have been checked.
+After scanning, commit `public/data/touch.json`. Themes that haven't been scanned yet, or whose download is missing on Rockbox, appear under **Unidentified** in the filter and show "Touch unknown" on their card.
 
 The cache only lasts as long as the committed file. If `touch.json` is deleted or reset before being committed, or you scan on another computer without running `git pull` first, those themes are downloaded again. When a theme is updated on Rockbox it gets a new ID, so each new version is scanned once.
 

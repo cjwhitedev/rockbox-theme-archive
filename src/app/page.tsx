@@ -6,9 +6,13 @@ import ThemeBrowser, { type Theme } from "../components/ThemeBrowser";
 const touchResults: Record<string, boolean | string> = touchData.themes;
 
 export default function Home() {
-  const themes = (catalog.themes as Omit<Theme, "touch">[]).map((theme) => {
+  const themes = (catalog.themes as Omit<Theme, "touch">[]).map((theme): Theme => {
     const result = touchResults[theme.id];
-    return { ...theme, touch: typeof result === "boolean" ? result : null };
+    return {
+      ...theme,
+      touch:
+        typeof result === "boolean" || result === "unavailable" ? result : null,
+    };
   });
 
   return (

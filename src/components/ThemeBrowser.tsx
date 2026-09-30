@@ -32,7 +32,8 @@ export type Theme = {
   appearanceConfidence: number | null;
   blackShare: number | null;
   mostlyBlack: boolean;
-  touch: boolean | null;
+  // null = not scanned yet; "unavailable" = Rockbox's download for it is missing.
+  touch: boolean | "unavailable" | null;
   detailUrl: string;
   downloadUrl: string;
 };
@@ -52,6 +53,18 @@ export type Device = {
 type SortOption = "newest" | "downloads" | "rating" | "name" | "smallest";
 
 const numberFormat = new Intl.NumberFormat("en");
+// UTC keeps the prerendered and in-browser dates identical.
+const dateFormat = new Intl.DateTimeFormat("en", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+function formatDate(timestamp: string) {
+  const date = new Date(`${timestamp.slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) ? null : dateFormat.format(date);
+}
 const pageSize = 30;
 const appearanceLabels = {
   dark: "Mostly dark",
@@ -101,7 +114,7 @@ const filterDefaults = {
 type FilterParam = keyof typeof filterDefaults;
 const filterParams = Object.keys(filterDefaults) as FilterParam[];
 const filterParamOptions: Partial<Record<FilterParam, readonly string[]>> = {
-  touch: ["all", "yes", "no"],
+  touch: ["all", "yes", "no", "unidentified"],
   firmware: ["all", "current", "release"],
   rating: ["0", "3", "4", "5"],
   size: ["all", "small", "large"],
@@ -137,6 +150,90 @@ function writeFilterParams(changes: Partial<Record<FilterParam, string>>) {
     `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`,
   );
   window.dispatchEvent(new Event(filterParamsChangeEvent));
+}
+
+function ShareIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="share-icon"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 3v12" />
+      <path d="M7 8l5-5 5 5" />
+      <path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
+    </svg>
+  );
+}
+
+function EyeIcon({ className }: { className: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+const touchLabels = {
+  yes: "Touch controls",
+  no: "No touch controls",
+  unidentified: "Touch unidentified",
+} as const;
+
+function TouchPill({ touch }: { touch: Theme["touch"] }) {
+  const status = touch === true ? "yes" : touch === false ? "no" : "unidentified";
+  const title =
+    touch === true
+      ? "This theme's skin files define touch regions"
+      : touch === false
+        ? "No touch regions found in this theme's skin files"
+        : touch === "unavailable"
+          ? "Couldn't be checked: this theme's download is missing on Rockbox"
+          : "Not checked yet";
+
+  return (
+    <span className={`touch-pill touch-pill--${status}`} title={title}>
+      <svg
+        aria-hidden="true"
+        className="pill-icon"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+      >
+        {status === "unidentified" ? (
+          <>
+            <circle cx="12" cy="12" r="9" />
+            <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.4" />
+            <circle cx="12" cy="17" fill="currentColor" r="1" stroke="none" />
+          </>
+        ) : (
+          <>
+            <circle cx="12" cy="12" r="8" />
+            <circle cx="12" cy="12" fill="currentColor" r="3" stroke="none" />
+            {status === "no" && <path d="M4 4l16 16" />}
+          </>
+        )}
+      </svg>
+      {status === "yes" ? "Touch" : status === "no" ? "No touch" : "Touch unknown"}
+    </span>
+  );
 }
 
 function ThemeCard({
@@ -175,20 +272,17 @@ function ThemeCard({
         )}
       </div>
       <div className="theme-card-body">
-        <div className="theme-card-topline">
-          <span
-            className={`theme-status${theme.worksWithDev ? "" : " theme-status--legacy"}`}
-          >
-            {status}
-          </span>
-          <span className="mono-label">#{theme.id}</span>
-        </div>
         <h2 title={theme.name}>{theme.name}</h2>
         <p className="theme-author">by {theme.submitter || "Unknown author"}</p>
         <p className="theme-description">
           {theme.description || "No description provided."}
         </p>
-        <div className="theme-metrics">
+        <div className="theme-tags">
+          <span
+            className={`theme-status${theme.worksWithDev ? "" : " theme-status--legacy"}`}
+          >
+            {status}
+          </span>
           <span
             className={`appearance-pill appearance-pill--${theme.mostlyBlack ? "black" : theme.appearance}`}
             title={
@@ -197,13 +291,27 @@ function ThemeCard({
                 : `Estimated from the first preview image (${theme.appearanceConfidence === null ? "confidence unavailable" : `${Math.round(theme.appearanceConfidence * 100)}% confidence`})`
             }
           >
+            <EyeIcon className="pill-icon" />
             {theme.mostlyBlack
               ? "Mostly black"
               : appearanceLabels[theme.appearance]}
           </span>
+          <TouchPill touch={theme.touch} />
+        </div>
+        {formatDate(theme.submittedAt) && (
+          <p
+            className="theme-updated"
+            title="When the current version was uploaded to Rockbox"
+          >
+            Last updated {formatDate(theme.submittedAt)}
+          </p>
+        )}
+        <div className="theme-metrics">
           <span>
             {theme.rating > 0 ? `${theme.rating}/5 rating` : "Not rated"}
-            {theme.votes > 0 ? ` · ${numberFormat.format(theme.votes)}` : ""}
+            {theme.votes > 0
+              ? ` (${numberFormat.format(theme.votes)} ${theme.votes === 1 ? "vote" : "votes"})`
+              : ""}
           </span>
           <span>{numberFormat.format(theme.downloads)} downloads</span>
           <span>{theme.sizeLabel || "Size unknown"}</span>
@@ -366,7 +474,8 @@ export default function ThemeBrowser({
       omitted === "touch" ||
       touch === "all" ||
       (touch === "yes" && theme.touch === true) ||
-      (touch === "no" && theme.touch === false);
+      (touch === "no" && theme.touch === false) ||
+      (touch === "unidentified" && typeof theme.touch !== "boolean");
     const matchesCompatibility =
       omitted === "compatibility" ||
       compatibility === "all" ||
@@ -430,8 +539,11 @@ export default function ThemeBrowser({
     all: countMatches("touch"),
     yes: countMatches("touch", (theme) => theme.touch === true),
     no: countMatches("touch", (theme) => theme.touch === false),
+    unidentified: countMatches(
+      "touch",
+      (theme) => typeof theme.touch !== "boolean",
+    ),
   };
-  const touchChecked = themes.filter((theme) => theme.touch !== null).length;
   const compatibilityCounts = {
     all: countMatches("compatibility"),
     current: countMatches("compatibility", (theme) => theme.worksWithDev),
@@ -519,7 +631,7 @@ export default function ThemeBrowser({
   if (touch !== "all") {
     activeFilters.push({
       key: "touch",
-      label: touch === "yes" ? "Touch controls" : "No touch controls",
+      label: touchLabels[touch as keyof typeof touchLabels],
       clear: () => updateFilters({ touch: "all" }),
     });
   }
@@ -725,13 +837,10 @@ export default function ThemeBrowser({
                 <option value="no">
                   No touch controls ({numberFormat.format(touchCounts.no)})
                 </option>
+                <option value="unidentified">
+                  Unidentified ({numberFormat.format(touchCounts.unidentified)})
+                </option>
               </select>
-              {touchChecked < themes.length && (
-                <p className="filter-note">
-                  Checked for {numberFormat.format(touchChecked)} of{" "}
-                  {numberFormat.format(themes.length)} themes so far.
-                </p>
-              )}
             </section>
 
             <section className="filter-section">
@@ -832,6 +941,7 @@ export default function ThemeBrowser({
 
             <section className="filter-section">
               <label className="filter-section-label" htmlFor="appearance">
+                <EyeIcon className="label-icon" />
                 Preview appearance
               </label>
               <select
@@ -886,7 +996,7 @@ export default function ThemeBrowser({
                 onChange={(event) => updateFilters({ sort: event.target.value })}
                 value={sortBy}
               >
-                <option value="newest">Recently added</option>
+                <option value="newest">Recently updated</option>
                 <option value="downloads">Most downloaded</option>
                 <option value="rating">Top rated</option>
                 <option value="name">Name A to Z</option>
@@ -933,6 +1043,7 @@ export default function ThemeBrowser({
                 }
                 type="button"
               >
+                <ShareIcon />
                 Share with filters
               </button>
               <button
@@ -941,6 +1052,7 @@ export default function ThemeBrowser({
                 title="Share a link to the full archive"
                 type="button"
               >
+                <ShareIcon />
                 Share page
               </button>
             </div>
