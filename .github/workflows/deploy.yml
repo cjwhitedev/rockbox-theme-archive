@@ -3,7 +3,10 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
-  workflow_dispatch:
+  schedule:
+    # Thu 03:00 UTC = Wed 11pm ET / 8pm PT
+    - cron: "0 3 * * 4"
+  workflow_dispatch:  
 
 permissions:
   contents: read
